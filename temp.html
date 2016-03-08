@@ -1,0 +1,259 @@
+<!doctype html>
+<html>
+<head>
+    <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+    <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+    <script src="http://maps.googleapis.com/maps/api/js"></script>
+    <script src="scratch.js"></script>
+    <style>
+        .caption{
+
+            background-color: rgba(1,1,1,.4);
+            overflow: hidden;
+            font-size:.5em;
+            position: absolute;
+            bottom: 0px;
+            left: 0px;
+            color: white;
+            transform: translateY(100%);
+            transition-duration: .6s;
+        }
+        figure{
+            position: relative;
+            overflow: hidden;
+            text-align: center;
+        }
+        figcaption{
+
+        }
+        figure:hover .caption{
+            transform: translateY(0%);
+        }
+        .photo_side:
+        {
+            background-color: red;
+            min-height: 50px;
+        }
+        .image{
+            position: relative;
+        }
+        .photo_loading > .image::after{
+            content:'';
+            position: absolute;
+            left: 0px;
+            top: 0px;
+            background-image: url('http://assets.demohour.com/assets/load-05eb745176d79ec27d52d544582483fc4d0f6378c7ed2060be24dfc4e8990668.gif');
+            background-size: contain;
+            height: 100%;
+            width: 100%;
+            background-repeat: no-repeat;
+        }
+        .image{
+            height: 75px;
+            width: 75px;
+            background-size: contain;
+        }
+    </style>
+    <script>
+        var flickr_key = '4291af049e7b51ff411bc39565109ce6';
+        var flickr_secret = '08d3df2f4f1d7f62';
+        var photo_area;
+        var google_map;
+        var photos=null;
+        var marker_list = [];
+        var myCenter=new google.maps.LatLng(51.508742,-0.120850);
+        var marker;
+        var google_map_object=null;
+        var base_flickr_request = 'https://api.flickr.com/services/rest?&api_key='+flickr_key+'&format=json&nojsoncallback=1';
+        photo_area=null;
+        /*********************
+         * photo_url_create
+         * purpose:
+         * params:
+         * returns:
+         **********************/
+        function photo_url_create(photo_object){
+            return 'https://farm'+photo_object.farm+'.staticflickr.com/'+photo_object.server+'/'+photo_object.id+'_'+photo_object.secret+'_s.jpg'
+        }
+        /*********************
+         * query_string_generate
+         * purpose:
+         * params:
+         * returns:
+         **********************/
+        function query_string_generate(target_object){
+            var stitched_string = '';
+            for(var index in target_object){
+                stitched_string += '&' + index + '=' + target_object[index];
+            }
+            return stitched_string;
+        }
+        /*********************
+         * get_photo_info
+         * purpose:
+         * params:
+         * returns:
+         **********************/
+        function get_photo_info(photo_element){
+            $(photo_element).addClass('photo_loading');
+            console.log('going to ',photo_element);
+            var photo_object = photos[parseInt($(photo_element).attr('data_id'))];
+            console.log('photo object: ',photo_object);
+            var request_keys = {
+                photo_id: photo_object.id,
+                secret: photo_object.secret,
+                method: 'flickr.photos.getInfo'
+            };
+            $.ajax({
+                url:base_flickr_request+query_string_generate(request_keys),
+                dataType:'json',
+                cache: false,
+                crossDomain: true,
+                success: function(response){
+                    $(photo_element).removeClass('photo_loading');
+                    center_point = new google.maps.LatLng(51.508742,-0.120850)
+                    map_generate_marker(response.photo, photo_object);
+
+                }
+            });
+        }
+        /*********************
+         * map_generate_marker
+         * purpose:
+         * params:
+         * returns:
+         **********************/
+        var map_generate_marker = function(photo_info, photo_object)
+        {
+            console.log("map generate marker photo info: ",photo_info);
+            var photoLatLng = new google.maps.LatLng(photo_info.location.latitude,photo_info.location.longitude);
+            console.log("photo object",photo_object);
+            var flickr_photo = {
+                url: photo_url_create(photo_object),
+                scaledSize: new google.maps.Size(75,75)
+            }
+
+            var marker = new google.maps.Marker({
+                position:photoLatLng,
+                map:google_map_object,
+                icon:flickr_photo,
+            });
+            google_map_object.setCenter(marker.getPosition());
+            marker_list.push(marker);
+        }
+        /*********************
+         * load_photo_data
+         * purpose:
+         * params:
+         * returns:
+         **********************/
+        function load_photo_data(search_text){
+            var request_keys = {
+                text: search_text,
+                has_geo: 1,
+                per_page: 34,
+                method: 'flickr.photos.search'
+            }
+            $.ajax({
+                url:base_flickr_request+query_string_generate(request_keys),
+                dataType:'json',
+                cache: false,
+                crossDomain: true,
+                success: function(response){
+                    console.log('test', response);
+                    photos = response.photos.photo;
+                    photo_area.find('.photo_container').remove();
+                    var location=null;
+                    var img_width = null;
+                    for(var i = 0; i<photos.length;i++){
+                        if(i<12){
+                            location = photo_area.find('.photo_top');
+                            img_width= 1;
+                        }
+                        else if(i>=12 && i<17){
+                            location = photo_area.find('.photo_left');
+                            img_width= 12;
+                        }
+                        else if(i>=17 && i<22){
+                            location = photo_area.find('.photo_right');
+                            img_width= 12;
+                        }
+                        else{
+                            location = photo_area.find('.photo_bottom');
+                            img_width= 1;
+                        }
+                        create_photo_object(location, photos[i], i, img_width);
+                    }
+                }
+            });
+        }
+        /*********************
+         * create_photo_object
+         * purpose:
+         * params:
+         * returns:
+         **********************/
+        function create_photo_object(target, photo_info, index, img_width){
+            var url = photo_url_create(photo_info);
+            var figure = $('<figure>',{
+                class:'photo_container col-lg-'+img_width,
+                id:"photo_"+index,
+                data_id:index,
+            }).click(function(){
+                console.log(this,' was clicked');
+                get_photo_info(this);
+            });
+            var img = $('<div>',{
+                class: 'image',
+                src:url
+            }).css('background-image','url('+url+')');
+            var figcaption = $('<figcaption>',{
+                text:photo_info.title,
+                class: 'caption col-xs-10 col-xs-offset-1'
+            })
+            figure.append(img, figcaption);
+            target.append(figure);
+
+        }
+        $(document).ready(function(){
+            $('#search_button').click(function(){
+                load_photo_data($('#search_input').val());
+            });
+            photo_area = $('#photo_area');
+            google_map = $('#googleMap');
+            //google.maps.event.addDomListener(window, 'load', initialize);
+            initialize();
+        });
+        /*********************
+         * initialize
+         * purpose:
+         * params:
+         * returns:
+         **********************/
+        function initialize() {
+            var mapProp = {
+                center:myCenter,
+                zoom:5,
+                mapTypeId:google.maps.MapTypeId.ROADMAP
+            };
+            google_map_object=new google.maps.Map(document.getElementById("googleMap"),mapProp);
+        }
+    </script>
+</head>
+<body>
+<div id="search_field">
+    <input name="search_input" placeholder="Input a search word" id="search_input">
+    <button type="button" id="search_button">Search</button>
+</div>
+<div id="photo_area">
+    <div class="photo_side photo_top col-lg-12"></div>
+    <div class="photo_side photo_left col-lg-1"></div>
+    <div class="map_center col-lg-10" moo='cow'>
+        <div id="googleMap" style="width:100%;height:380px;" ></div>
+    </div>
+    <div class="photo_side photo_right col-lg-1"></div>
+    <div class="photo_side photo_bottom col-lg-12"></div>
+</div>
+</body>
+</html>
